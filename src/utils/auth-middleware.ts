@@ -3,7 +3,11 @@ import jwt from 'jsonwebtoken';
 import User from '../models/user';
 import { IUserDocument } from '../types';
 
-const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+interface AuthenticatedRequest extends Request {
+  user?: IUserDocument;
+}
+
+const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const token = req.headers['authorization']?.split(' ')[1];
 
   if (!token) {
@@ -11,15 +15,14 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
   }
 
   try {
-    const decoded: any = jwt.verify(token, process.env.SECRET_KEY as string);
+    const decoded = jwt.verify(token, process.env.SECRET_KEY as string) as { id: string };
     const user = await User.findById(decoded.id);
 
     if (!user) {
       return res.status(403).json({ message: 'User not found' });
     }
 
-    // Attach the user object to the request
-    req.user = user as IUserDocument;
+    req.user = user;
     next();
   } catch (error) {
     return res.status(403).json({ message: 'Failed to authenticate token' });
