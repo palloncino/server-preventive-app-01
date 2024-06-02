@@ -2,12 +2,10 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
-import xssClean from 'xss-clean';
 import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/db';
 import authRoutes from './routes/authRoutes';
 import Logger from './utils/Logger';
-import './utils/emailScheduler';
 
 const envPath = process.env.NODE_ENV === 'production' ? '.env.remote' : '.env.local';
 dotenv.config({ path: envPath });
@@ -19,7 +17,6 @@ const PORT = Number(process.env.PORT) || 5004;
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 app.use(helmet());
-app.use(xssClean());
 
 // Rate limiting
 const limiter = rateLimit({
