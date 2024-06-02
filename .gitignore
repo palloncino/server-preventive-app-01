@@ -1,0 +1,8 @@
+node_modules
+pdfs
+images
+logs/*
+.env.local
+.env.remote
+secret.txt
+TODOs.md
