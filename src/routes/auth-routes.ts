@@ -1,10 +1,9 @@
-import dotenv from 'dotenv';
-import bcrypt from 'bcryptjs';
 import express, { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import User from '../models/user'; // Adjust the import to your Sequelize User model
-
-dotenv.config({ path: process.env.NODE_ENV === 'production' ? '.env.remote' : '.env.local' });
+import User from '../models/user';
+import { IUserDocument } from '../types'; // Ensure the path is correct
+import authMiddleware from '../utils/auth-middleware';
 
 const router = express.Router();
 
@@ -12,24 +11,20 @@ router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({ email }) as IUserDocument | null;
 
     if (!user) {
-      return res.status(401).json({
-        message: 'Invalid email or password, there is no user with that email',
-      });
+      return res.status(401).json({ message: 'Invalid email or password, there is no user with that email' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({
-        message: 'Invalid email or password, the credentials do not match',
-      });
+      return res.status(401).json({ message: 'Invalid email or password, the credentials do not match' });
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user._id, email: user.email, role: user.role },
       process.env.SECRET_KEY as string,
       { expiresIn: '1h' }
     );
@@ -47,14 +42,14 @@ router.post('/verify-token', async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'Token is required' });
   }
   try {
-    const decoded = jwt.verify(token, process.env.SECRET_KEY as string) as { id: string };
-    const user = await User.findByPk(decoded.id);
+    const decoded = jwt.verify(token, process.env.SECRET_KEY as string) as any;
+    const user = await User.findById(decoded.id) as IUserDocument | null;
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
     res.json({ message: 'Token verified successfully', user });
-  } catch (err) {
-    res.status(401).json({ message: 'Invalid or expired token', error: (err as Error).message });
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid or expired token', error: (error as Error).message });
   }
 });
 
@@ -62,13 +57,13 @@ router.post('/signup', async (req: Request, res: Response) => {
   const { username, firstName, lastName, companyName, email, password } = req.body;
 
   try {
-    const existingUser = await User.findOne({ where: { email } });
+    const existingUser = await User.findOne({ email }) as IUserDocument | null;
     if (existingUser) {
       return res.status(409).json({ message: 'User already exists with the same email' });
     }
 
     // Create the new user
-    const newUser = await User.create({
+    const newUser = new User({
       username,
       firstName,
       lastName,
@@ -76,7 +71,9 @@ router.post('/signup', async (req: Request, res: Response) => {
       email,
       password, // Pass the password directly, it will be hashed by the model hook
       role: 'user',
-    });
+    }) as IUserDocument;
+
+    await newUser.save();
 
     res.status(201).json({ message: 'User registered successfully!', user: newUser });
   } catch (error) {

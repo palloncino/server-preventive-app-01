@@ -1,17 +1,8 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Schema, Model, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { IUserDocument } from '../types'; // Ensure the path is correct
 
-interface IUser extends Document {
-  username: string;
-  firstName: string;
-  lastName: string;
-  companyName: string;
-  email: string;
-  password: string;
-  role: string;
-}
-
-const userSchema: Schema = new Schema<IUser>({
+const userSchema: Schema<IUserDocument> = new mongoose.Schema({
   username: { type: String, required: true },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
@@ -21,19 +12,25 @@ const userSchema: Schema = new Schema<IUser>({
   role: { type: String, required: true, default: 'user' },
 });
 
-// Hash the password before saving the user model
-userSchema.pre('save', async function (next) {
+userSchema.pre<IUserDocument>('save', async function (next) {
   if (!this.isModified('password')) {
     return next();
   }
+
   try {
     const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+    const hash = await bcrypt.hash(this.password, salt);
+    this.password = hash;
     next();
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error as mongoose.CallbackError);
   }
 });
 
-const User = mongoose.model<IUser>('User', userSchema);
+userSchema.methods.comparePassword = function (password: string): Promise<boolean> {
+  return bcrypt.compare(password, this.password);
+};
+
+const User: Model<IUserDocument> = mongoose.model<IUserDocument>('User', userSchema);
+
 export default User;
